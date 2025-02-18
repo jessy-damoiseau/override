@@ -1,30 +1,28 @@
 #include <stdio.h>
-#include <stdint.h>
-#include <string.h>
 #include <stdlib.h>
+#include <string.h>
+#include <stdint.h>
 
-#define STORAGE_SIZE 100
-
-int clear_stdin() {
-    int result;
-    do {
-        result = getchar();
-    } while (result != '\n' && result != EOF);
-    return result;
+/* Vide le tampon d'entrée jusqu'au saut de ligne ou EOF */
+void clear_stdin(void) {
+    int c;
+    while ((c = getchar()) != '\n' && c != EOF);
 }
 
-int get_unum() {
-    int v1 = 0;
+/* Lit un nombre entier depuis l'entrée standard */
+int get_unum(void) {
+    int num = 0;
     fflush(stdout);
-    if (scanf("%d", &v1) != 1) {
-        v1 = 0;
-    }
+    scanf("%d", &num);
     clear_stdin();
-    return v1;
+    return num;
 }
 
-int store_number(int *storage) {
-    int number, index;
+/* Stocke un nombre dans le tableau de données.
+   La fonction refuse de stocker si l'index est multiple de 3
+   ou si le high-byte du nombre vaut 183. */
+int store_number(int *data) {
+    unsigned int number, index;
     
     printf(" Number: ");
     number = get_unum();
@@ -32,35 +30,45 @@ int store_number(int *storage) {
     printf(" Index: ");
     index = get_unum();
     
-    if (index % 3 == 0 || ((number >> 24) & 0xFF) == 183) {
+    /* Si l'index est un multiple de 3 ou si le high-byte du nombre vaut 183 */
+    if ((index % 3 == 0) || (((number >> 8) & 0xFF) == 183)) {
         puts(" *** ERROR! ***");
         puts("   This index is reserved for wil!");
         puts(" *** ERROR! ***");
         return 1;
+    } else {
+        data[index] = number;
+        return 0;
     }
-    
-    storage[index] = number;
-    return 0;
 }
 
-int read_number(int *storage) {
+/* Lit et affiche le nombre stocké à l'index donné */
+int read_number(int *data) {
     int index;
     
     printf(" Index: ");
     index = get_unum();
     
-    if (index >= STORAGE_SIZE) {
-        puts(" *** ERROR! Invalid index! ***");
-        return 1;
-    }
-    
-    printf(" Number at data[%u] is %u\n", index, storage[index]);
+    printf(" Number at data[%u] is %u\n", (unsigned int)index, (unsigned int)data[index]);
     return 0;
 }
 
-int main() {
-    int storage[STORAGE_SIZE];
-    char command[20];
+int main(int argc, char **argv, char **envp) {
+    /* 400 octets pour le stockage (tableau de 100 int) */
+    int data[100] = {0};
+    char command[20] = {0};
+    int ret = 0;
+    int i;
+    
+    /* Efface le contenu des arguments de la ligne de commande */
+    for (i = 0; argv[i] != NULL; i++) {
+        memset(argv[i], 0, strlen(argv[i]));
+    }
+    
+    /* Efface le contenu des variables d'environnement */
+    for (i = 0; envp[i] != NULL; i++) {
+        memset(envp[i], 0, strlen(envp[i]));
+    }
     
     puts("----------------------------------------------------");
     puts("  Welcome to wil's crappy number storage service!   ");
@@ -75,29 +83,30 @@ int main() {
     
     while (1) {
         printf("Input command: ");
-        if (!fgets(command, sizeof(command), stdin)) {
-            continue;
-        }
+        ret = 1;  /* valeur par défaut : commande échouée */
         
-        command[strcspn(command, "\n")] = 0; // Supprimer le \n final
-        
-        if (strcmp(command, "store") == 0) {
-            if (store_number(storage)) {
-                printf(" Failed to do store command\n");
-            } else {
-                printf(" Completed store command successfully\n");
-            }
-        } else if (strcmp(command, "read") == 0) {
-            if (read_number(storage)) {
-                printf(" Failed to do read command\n");
-            } else {
-                printf(" Completed read command successfully\n");
-            }
-        } else if (strcmp(command, "quit") == 0) {
+        if (fgets(command, sizeof(command), stdin) == NULL)
             break;
-        } else {
-            puts(" Invalid command!");
+        
+        /* Supprime le saut de ligne final */
+        size_t len = strlen(command);
+        if (len > 0 && command[len - 1] == '\n')
+            command[len - 1] = '\0';
+        
+        if (strncmp(command, "store", 5) == 0) {
+            ret = store_number(data);
+        } else if (strncmp(command, "read", 4) == 0) {
+            ret = read_number(data);
+        } else if (strncmp(command, "quit", 4) == 0) {
+            break;
         }
+        
+        if (ret)
+            printf(" Failed to do %s command\n", command);
+        else
+            printf(" Completed %s command successfully\n", command);
+        
+        memset(command, 0, sizeof(command));
     }
     
     return 0;
